@@ -1,9 +1,6 @@
 package me.alireza.talebipour;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -13,81 +10,108 @@ public class CanvasLine {
 
     private final Scanner scanner = new Scanner(System.in);
 
-    private Canvas[] canvases;
     private int[] existingPegs;
     private List<Integer> result;
+    private Canvas first;
 
 
     private void readInputs() {
         System.out.println("Please provide inputs:");
-        canvases = new Canvas[Integer.parseInt(scanner.nextLine())];
-        for (int i = 0; i < canvases.length; i++) {
-            canvases[i] = new Canvas(scanner.nextLine());
+        int canvasCount = Integer.parseInt(scanner.nextLine());
+        first = new Canvas(scanner.nextLine(), null);
+        Canvas previous = first;
+        for (int i = 1; i < canvasCount; i++) {
+            previous = new Canvas(scanner.nextLine(), previous);
         }
         int pegCount = Integer.parseInt(scanner.nextLine());
-        existingPegs = Arrays.stream(scanner.nextLine().split("\\s")).mapToInt(Integer::parseInt).toArray();
+        existingPegs = pegCount == 0 ? new int[0] :
+                Arrays.stream(scanner.nextLine().split("\\s")).mapToInt(Integer::parseInt).toArray();
         assert pegCount == existingPegs.length;
     }
 
 
-    private boolean solve() {
+    private List<Integer> solve() {
         result = new ArrayList<>();
-        for (int i = 0, pegCursor = 0; i < canvases.length; i++) {
-            Canvas canvas = canvases[i];
+        Canvas current = first;
+        for (int pegCursor = 0; current != null; current = current.next) {
             for (int j = pegCursor; j < existingPegs.length; j++) {
                 int peg = existingPegs[j];
-                if (peg < canvas.right) {
+                if (peg < current.right) {
                     pegCursor = j;
                 }
-                if (canvas.containsPoint(peg)) {
-                    canvas.pegs.add(peg);
+                if (current.containsPoint(peg)) {
+                    current.pegs.add(peg);
                 }
-                if (peg >= canvas.right) {
+                if (peg >= current.right) {
                     break;
                 }
             }
-            switch (canvas.pegs.size()) {
-                case 0:
-                    addPeg(canvas.left, canvas, null);
-                    addPeg(canvas.right, canvas, i < canvases.length - 1 ? canvases[i + 1] : null);
-                    break;
-                case 1:
-                    if (canvas.pegs.get(0) == canvas.right) {
-                        addPeg(canvas.left, canvas, null);
-                    } else {
-                        addPeg(canvas.right, canvas, i < canvases.length - 1 ? canvases[i + 1] : null);
-                    }
-                    break;
-                case 2:
-                    // It's stable!!
-                    break;
-                default:
-                    //"More than 2 pegs on one canvas!"
-                    return false;
+            if (current.previous != null) {
+                current.previous.stabilize();
+            }
+            if (current.next == null) {
+                current.stabilize();
             }
         }
-        return true;
+        return result;
     }
 
-    private void addPeg(int peg, Canvas canvas, Canvas nextCanvas) {
-        canvas.pegs.add(peg);
-        if (nextCanvas != null && nextCanvas.containsPoint(peg)) {
-            nextCanvas.pegs.add(peg);
-        }
-        result.add(peg);
-    }
 
-    private static class Canvas {
+
+
+    private class Canvas {
+        final Canvas previous;
+        Canvas next;
         final int left;
         final int right;
 
         List<Integer> pegs = new ArrayList<>();
 
 
-        Canvas(String line) {
+        Canvas(String line, Canvas previous) {
+            this.previous = previous;
+            if (previous != null) {
+                previous.next = this;
+            }
             String[] split = line.split("\\s");
             this.left = Integer.parseInt(split[0]);
             this.right = Integer.parseInt(split[1]);
+        }
+
+        void stabilize() {
+            int neededPegs = 2 - pegs.size();
+            for (int i = 0; i < neededPegs; i++) {
+                addPeg();
+            }
+            if (pegs.size() != 2) {
+                throw new IllegalStateException("impossible");
+            }
+        }
+
+        void addPeg() {
+            int peg = -1;
+            if (!this.pegs.contains(right) && (next == null || next.pegs.size() < 2 || right != next.left)) {
+                peg = right;
+            } else if (!this.pegs.contains(left) && (previous == null || previous.right != left
+                    || previous.pegs.size() < 2)) {
+                peg = left;
+            } else  {
+                peg = findEmptyPegPoint();
+            }
+            this.pegs.add(peg);
+            if (next != null && next.containsPoint(peg)) {
+                next.pegs.add(peg);
+            }
+            result.add(peg);
+        }
+
+        private int findEmptyPegPoint() {
+            for (int i = left + 1; i < right; i++) {
+                if (!this.pegs.contains(i)) {
+                    return i;
+                }
+            }
+            throw new IllegalStateException("impossible");
         }
 
         /**
@@ -106,10 +130,11 @@ public class CanvasLine {
     public static void main(String[] args) {
         CanvasLine canvasLine = new CanvasLine();
         canvasLine.readInputs();
-        if (canvasLine.solve()) {
-            System.out.println(canvasLine.result.size());
-            System.out.println(canvasLine.result.stream().map(Object::toString).collect(Collectors.joining(" ")));
-        } else {
+        try {
+            List<Integer> result = canvasLine.solve();
+            System.out.println(result.size());
+            System.out.println(result.stream().map(Object::toString).collect(Collectors.joining(" ")));
+        } catch (IllegalStateException ex) {
             System.out.println("impossible");
         }
 

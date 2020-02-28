@@ -1,4 +1,4 @@
-package me.alireza.talebipour;
+package com.github.talebipour;
 
 import java.util.*;
 import java.util.stream.Collectors;
